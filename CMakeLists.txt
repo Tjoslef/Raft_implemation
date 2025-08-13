@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.13)
+project(Raft_alg)
+set(CMAKE_CXX_STANDARD 23)
+file(GLOB_RECURSE SOURCE_FILES src/*.cpp raft_node/*.hpp)
+add_executable(Raft_alg ${SOURCE_FILES})

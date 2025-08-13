@@ -1,0 +1,3 @@
+/home/tjoslef/Raft_alg/CMakeFiles/Raft_alg.dir
+/home/tjoslef/Raft_alg/CMakeFiles/edit_cache.dir
+/home/tjoslef/Raft_alg/CMakeFiles/rebuild_cache.dir
