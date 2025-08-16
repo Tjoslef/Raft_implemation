@@ -1,1 +1,1 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/Raft_alg.dir/link.d CMakeFiles/Raft_alg.dir/src/main.cpp.o CMakeFiles/Raft_alg.dir/src/raft_node.cpp.o -o Raft_alg
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/Raft_alg.dir/link.d CMakeFiles/Raft_alg.dir/src/main.cpp.o CMakeFiles/Raft_alg.dir/src/raft_node.cpp.o -o Raft_alg  /usr/lib64/libz.so

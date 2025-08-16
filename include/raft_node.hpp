@@ -7,13 +7,17 @@
 #include <chrono>
 #include <iostream>
 #include <random>
-
-
+#include <fstream>
+#include <unistd.h>
+#include <zlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 enum Status{
     Leader = 0,
     Candidate = 1,
     Follower = 2
 };
+
 enum class MessageType {
     VoteRequest,
     VoteResponse,
@@ -30,7 +34,18 @@ struct VoteRequest {
     int lastLogIndex;
     int lastLogTerm;
 };
+#pragma pack(push, 1)
+struct WalRecordHeader {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t payload_len;
+    uint32_t crc32;
+    uint64_t term;
+};
+#pragma pack(pop)
 
+static constexpr uint32_t WAL_MAGIC = 0xDEC0AD01;
+static constexpr uint32_t WAL_VERSION = 1;
 struct VoteResponse {
     int term;
     bool voteGranted = false;
@@ -55,7 +70,13 @@ struct AppendEntriesResponse {
     int conflictIndex = -1;
     int logIndex = -1;
 };
-
+struct HardState {
+    uint32_t magic;
+    uint32_t version;
+    uint64_t currentTerm;
+    uint64_t votedFor;
+    uint32_t checksum;
+};
 struct Message {
     MessageType type;
     std::variant<VoteRequest, VoteResponse, AppendEntries, AppendEntriesResponse> data;
@@ -80,6 +101,7 @@ class RaftNode {
         VoteResponse receiveVoteRequest(VoteRequest voteReq);
         void onVoteGranted();
         int getLastLogTerm();
+        HardState recovery_Hard_state(const std::string& hardPath);
         void receivingMessage(std::vector<std::unique_ptr<RaftNode>> &nodes);
         void sendMessageToNode(int nodeId, const Message& msg, const std::vector<std::unique_ptr<RaftNode>>& nodes);
         std::string messageTypeToString(MessageType type);
@@ -87,6 +109,10 @@ class RaftNode {
         void sendAppendEntries(Message msg,const std::vector<std::unique_ptr<RaftNode>>& nodes);
         void processIncomingMessages(const std::vector<std::unique_ptr<RaftNode>>& nodes);
         void checkAndCommitLogs(const std::vector<std::unique_ptr<RaftNode>>& nodes);
+        int saveHardState();
+        int appendWal(const std::vector<LogEntry> &logs,const std::string& walPath);
+        LogEntry deserialize(const std::vector<char>& buffer);
+        std::vector<LogEntry>recovery_wal(const std::string& walPath);
     private:
         std::random_device rd;
     std::mt19937 rand_gen;
@@ -104,8 +130,11 @@ class RaftNode {
     std::chrono::milliseconds electionTimeout;
     std::chrono::milliseconds heartbeatInterval;
     std::chrono::steady_clock::time_point nextHeartbeatTime;
+
     std::queue<Message> incomingMessages;
     std::mutex mutex_hearbeat;
+    std::mutex mutex_hard_state;
+    std::mutex mutex_wal;
     std::mutex mutex_election;
     std::mutex mutex_message;
     std::mutex message_queue_for_loop_mutex;

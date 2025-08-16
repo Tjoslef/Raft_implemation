@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 project(Raft_alg)
+find_package(ZLIB REQUIRED)
 set(CMAKE_CXX_STANDARD 23)
 file(GLOB_RECURSE SOURCE_FILES src/*.cpp raft_node/*.hpp)
 add_executable(Raft_alg ${SOURCE_FILES})
+target_link_libraries(Raft_alg PRIVATE ZLIB::ZLIB)

@@ -3,19 +3,29 @@
 #include <cassert>
 #include <cerrno>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unistd.h>
 #include <variant>
+#include <vector>
+#include <zconf.h>
+#include <zlib.h>
 std::mutex cerr_mutex;
 std::mutex cout_mutex;
+const std::string& walPath = "./backup/walSave";
 RaftNode::RaftNode(int nodeId)
     : id(nodeId),
       rand_gen(rd()),
-      electionTimeoutDistribution(300,600 ),
-      heartbeatIntervalDistribution(100, 150)
+      electionTimeoutDistribution(400,800 ),
+      heartbeatIntervalDistribution(100, 200)
 {
     this->electionTimeout = getElectionTimeout();
     this->heartbeatInterval = getHeartbeatInterval();
@@ -40,13 +50,13 @@ void RaftNode::checkAndCommitLogs(const std::vector<std::unique_ptr<RaftNode>>& 
 void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
     for(;;) {
         Message msg;
-        {
+                {
                     std::lock_guard<std::mutex> qlock(mutex_message);
                     if (incomingMessages.empty()) break;
                     msg = std::move(incomingMessages.front());
                     incomingMessages.pop();
                 }
-        {
+                {
                     std::lock_guard<std::mutex> lk(cout_mutex);
                     std::cout << "[Node " << id << "] processing message type " << messageTypeToString(msg.type) << "\n";
                 }
@@ -59,6 +69,7 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                         heartbeatReceived = true;
                     }
                     cv_heartbeat.notify_one();
+                    int snapshot_appendWal_status = 0;
                     if (temp->term >= currentTerm) {
                         if (temp->term > currentTerm) {
                             currentTerm = temp->term;
@@ -119,6 +130,19 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                         }
                     }
                 }
+                {
+                    std::lock_guard<std::mutex> wlock(mutex_wal);
+                    if(appendWal(temp->entries,walPath) != 0){
+                        snapshot_appendWal_status = -1;
+                    }
+                    }
+                {
+                    std::lock_guard<std::mutex> Elock(cerr_mutex);
+                    if(snapshot_appendWal_status == -1){
+                        std::cerr << "error in append backup";
+                        exit(1);
+                    }
+                }
                 response.logIndex = (int)this->log.size();
 
                 Message responseMsg;
@@ -158,6 +182,7 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                                 this->nextIndex[temp->responderId]--;
                             }
                         }
+
                     }
                 }
                 {
@@ -193,9 +218,8 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
             {
                 std::lock_guard<std::mutex> lk(cout_mutex);
                 std::cout << "[Node " << id << "] VoteResponse: granted="
-                          << (voteRes.voteGranted ? "true" : "false")
+                          << (votes_snapshot ? "true" : "false")
                           << " counted=" << (counted ? "true" : "false")
-                          << " votes=" << votes_snapshot
                           << " res.term=" << voteRes.term
                           << " cur.term=" << term_snapshot
                           << " status=" << (int)status_snapshot << "\n";
@@ -212,6 +236,10 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                     currentTerm = temp->term;
                     votedFor = -1;
                     current_status = Status::Follower;
+                    {
+                        std::lock_guard<std::mutex> Flock(mutex_hard_state);
+                        saveHardState();
+                    }
                 }
 
                 bool logUpToDate =
@@ -224,6 +252,10 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                     votedFor = temp->candidateId;
                     response.voteGranted = true;
                     response.term = temp->term;
+                    {
+                        std::lock_guard<std::mutex> Flock(mutex_hard_state);
+                        saveHardState();
+                    }
                 }
 
                 {
@@ -239,7 +271,6 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                 sendMessageToNode(temp->candidateId, responseMsg, nodes);
             }
         } else {
-            // Unknown/unhandled type
             {
                 std::lock_guard<std::mutex> lk(cout_mutex);
                 std::cout << "[Node " << id << "] Unknown message type received\n";
@@ -261,8 +292,8 @@ void RaftNode::sendMessageToNode(int nodeId, const Message& msg, const std::vect
     {
         std::lock_guard<std::mutex> lock(node->mutex_message);
         node->incomingMessages.push(msg);
+        node->cv_incoming_message.notify_one();
     }
-    node->cv_incoming_message.notify_one();
     {
         std::lock_guard<std::mutex> lock(cout_mutex);
    std::cout << "sendMessageToNode " << nodeId << " type of " << messageTypeToString(msg.type) << "\n";
@@ -303,6 +334,7 @@ void RaftNode::startElection(const std::vector<std::unique_ptr<RaftNode>>& nodes
     bool won;
     auto deadline = std::chrono::steady_clock::now() + electionTimeout;
     const size_t majority = nodes.size() / 2 + 1;
+    heartbeatInterval = getHeartbeatInterval();
     std::unique_lock<std::mutex> lock(mutex_election);
     while (current_status == Status::Candidate &&
     votesGranted < (int)majority) {
@@ -333,7 +365,6 @@ void RaftNode::startElection(const std::vector<std::unique_ptr<RaftNode>>& nodes
             matchIndex[n->id] = 0;
         }
         matchIndex[this->id] = myLast;
-        nextHeartbeatTime = std::chrono::steady_clock::now();
 
         lock.unlock();
 
@@ -369,7 +400,8 @@ int RaftNode::Loop(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
                 processIncomingMessages(nodes);
                 this->heartbeatReceived = false;
             } else {
-                { std::lock_guard<std::mutex> lock(cout_mutex);
+                {
+                std::lock_guard<std::mutex> lock(cout_mutex);
                 std::cout << "[Node " << id << "] Follower timed out. Starting election.\n";
                 }
                 startElection(nodes);
@@ -387,11 +419,17 @@ int RaftNode::Loop(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
             heartbeatInterval = getHeartbeatInterval();
             if (now >= this->nextHeartbeatTime) {
                     heartbeat_send = true;
-                    nextHeartbeatTime = now + heartbeatInterval;
+                    do {
+                    nextHeartbeatTime += heartbeatInterval;
+                    } while (nextHeartbeatTime <= now + heartbeatInterval);
                 }else {
                     std::mt19937 rand_gen(std::random_device{}());
                     std::uniform_int_distribution<int> num_entries_dist(1, 5);
                     num_logs_to_send = num_entries_dist(rand_gen);
+                }
+                {
+                std::lock_guard<std::mutex> lock(cout_mutex);
+                std::cout << "number of logs to send " << num_logs_to_send << " \n";
                 }
             AppendEntries log_entries_msg = create_entries(num_logs_to_send,heartbeat_send);
             Message msg;
@@ -402,11 +440,77 @@ int RaftNode::Loop(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
             cv_incoming_message.wait_for(lock, heartbeatInterval, [&] {
                 return !message_queue_for_loop.empty();
             });
-
+            lock.unlock();
             processIncomingMessages(nodes);
     }
     }
     return 0;
+}
+LogEntry RaftNode::deserialize(const std::vector<char>& buffer) {
+    LogEntry entry;
+    size_t offset = 0;
+    std::memcpy(&entry.term, &buffer[offset], sizeof(entry.term));
+    offset += sizeof(entry.term);
+    uint32_t command_length;
+    std::memcpy(&command_length, &buffer[offset], sizeof(command_length));
+    offset += sizeof(command_length);
+    entry.command.assign(&buffer[offset], command_length);
+
+    return entry;
+}
+std::vector<LogEntry> RaftNode::recovery_wal(const std::string& walPath){
+    std::vector<LogEntry> recoveredEntries;
+        std::ifstream walFile(walPath, std::ios::binary);
+   if(!walFile.is_open()){
+       return recoveredEntries;
+   }
+   WalRecordHeader header;
+   int offset = 0;
+   while (walFile.read(reinterpret_cast<char*>(&header), sizeof(header))) {
+       std::vector<char> payload(header.payload_len);
+        if (!walFile.read(payload.data(), header.payload_len)) {
+            break;
+        }
+
+   if(crc32(0L, reinterpret_cast<const Bytef*>(payload.data()), payload.size()) != header.crc32){
+       return recoveredEntries;
+   }
+   std::vector<char> buffer(payload.begin(),payload.end());
+   recoveredEntries.push_back(deserialize(buffer));
+          offset = walFile.tellg();
+   }
+   return recoveredEntries;
+}
+HardState RaftNode::recovery_Hard_state(const std::string& hardPath){
+    HardState default_state = {0, 0, 0, 0, 0};
+    int fd = open(hardPath.c_str(), O_RDONLY);
+        if (fd == -1) {
+            std::cerr << "Hard state file not found or could not be opened." << std::endl;
+            return default_state;
+        }
+    struct stat st;
+        if (fstat(fd, &st) == -1 || st.st_size != sizeof(HardState)) {
+            std::cerr << "Hard state file is incomplete or corrupted." << std::endl;
+            close(fd);
+            return default_state;
+        }
+        HardState hard_state;
+            if (read(fd, &hard_state, sizeof(HardState)) == -1) {
+                std::cerr << "Failed to read hard state file." << std::endl;
+                close(fd);
+                return default_state;
+            }
+
+            close(fd);
+int expected_checksum = hard_state.checksum;
+hard_state.checksum = 0;
+int checksum = crc32(0L, reinterpret_cast<const Bytef*>(&hard_state), sizeof(hard_state) - sizeof(hard_state.checksum));
+if(checksum != expected_checksum){
+    std::cerr << "Hard state file is corrupted. Checksum mismatch." << std::endl;
+    return hard_state = {0,0,0};
+}
+std::cout << "Successfully recovered hard state." << std::endl;
+    return hard_state;
 }
 LogEntry create_log(int term_input){
     std::string command= "hello";
@@ -431,17 +535,33 @@ void RaftNode::sendAppendEntries(Message msg,const std::vector<std::unique_ptr<R
 AppendEntries RaftNode::create_entries(int num_log,bool heartbeat){
     int term = this->currentTerm;
     int leaderId = this->id;
+    const int oldLast = static_cast<int>(this->log.size());
+    const int prevLogIndex = oldLast;
+    const int prevLogTerm = (oldLast > 0) ? this->log[oldLast - 1].term : 0;
     std::vector<LogEntry> entries;
     entries.reserve(num_log);
     if(!heartbeat){
     for (int i = 0; i < num_log; ++i) {
         LogEntry new_log = create_log(term);
                 entries.push_back(new_log);
-                this->log.push_back(new_log);
+        }
+    int snapshot = 0;
+    {
+        std::lock_guard<std::mutex> wlock(mutex_wal);
+        if(appendWal(entries,walPath) != 0){
+            snapshot = -1;
         }
     }
-    int prevLogIndex= this->lastLogIndex - num_log;
-    int prevLogTerm = (lastLogIndex > 0) ? this->log[lastLogIndex-1].term:0;
+    {
+        std::lock_guard<std::mutex> wlock(cerr_mutex);
+        if(snapshot == -1){
+           std::cerr << "error in backup";
+        }
+    }
+    this->log.insert(this->log.end(), entries.begin(), entries.end());
+    }else {
+        heartbeat = false;
+    }
     int leaderCommit = this->commitIndex;
     AppendEntries new_answer {term,leaderId,prevLogIndex,prevLogTerm,entries,leaderCommit};
     return new_answer;
@@ -454,4 +574,100 @@ case MessageType::VoteRequest: return "RequestVote";
 case MessageType::VoteResponse: return "VoteResponse";
 default: return "Unknown";
 }
+}
+std::vector<char> serializeHardState(uint64_t term, uint64_t vote) {
+    HardState state;
+    state.magic = 0xDEADBEEF;
+    state.version = 1;
+    state.currentTerm = term;
+    state.votedFor = vote;
+
+    state.checksum = crc32(0L, reinterpret_cast<const Bytef*>(&state), sizeof(state) - sizeof(state.checksum));
+    std::vector<char> buffer(sizeof(HardState));
+
+    std::memcpy(buffer.data(), &state, sizeof(HardState));
+
+    return buffer;
+}
+static bool writeAll(int fd, const void* data, size_t len) {
+    const char* p = static_cast<const char*>(data);
+    while (len > 0) {
+        ssize_t n = ::write(fd, p, len);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            return false;
+        }
+        p   += static_cast<size_t>(n);
+        len -= static_cast<size_t>(n);
+    }
+    return true;
+}
+int RaftNode::saveHardState(){
+      FILE *file = fopen("./backup/hard_state.dat.tmp","w");
+      if (!file) {
+              return -1;
+          }
+      std::vector<char> hardstate = serializeHardState(this->currentTerm, this->votedFor);
+      size_t bytes_W = fwrite(hardstate.data(), sizeof(char), hardstate.size(),file);
+      if (bytes_W != hardstate.size()) {
+          fclose(file);
+          return -1;
+      }
+      int fd = fileno(file);
+      if(fsync(fd) == -1){
+          fclose(file);
+                  return -1;
+              }
+          fclose(file);
+    if (rename("./backup/hard_state.dat.tmp", "./backup/hard_state.dat") == -1) {
+            return -1;
+        }
+    FILE* dir = fopen("./backup", "r");
+        if (dir) {
+            fsync(fileno(dir));
+            fclose(dir);
+        }
+       return 0;
+}
+std::vector<char> serialize(const LogEntry &entry) {
+    std::vector<char> buffer;
+    size_t total_size = sizeof(entry.term) + entry.command.size() + sizeof(uint32_t);
+    buffer.resize(total_size);
+
+        size_t offset = 0;
+        std::memcpy(&buffer[offset], &entry.term, sizeof(entry.term));
+        offset += sizeof(entry.term);
+
+        uint32_t command_length = entry.command.size();
+        std::memcpy(&buffer[offset], &command_length, sizeof(command_length));
+        offset += sizeof(command_length);
+
+        std::memcpy(&buffer[offset], entry.command.data(), entry.command.size());
+        return buffer;
+}
+int RaftNode::appendWal(const std::vector<LogEntry> &logs,const std::string& walPath){
+    if (logs.empty()) return 0;
+    std::vector<char> walS;
+    int fd = open("./backup/walSave", O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (fd == -1) {
+            std::cerr << "Error opening file: " << strerror(errno) << std::endl;
+            return 1;
+        }
+        bool ok = true;
+    for(int i = 0;i < logs.size() && ok;i++){
+        std::vector<char> payload = serialize(logs[i]);
+        WalRecordHeader hdr;
+        hdr.magic       = WAL_MAGIC;
+        hdr.version     = WAL_VERSION;
+        hdr.payload_len = static_cast<uint32_t>(payload.size());
+        hdr.crc32       = crc32(0L,reinterpret_cast<const Bytef*>(payload.data()),static_cast<uInt>(payload.size()));
+        hdr.term        = static_cast<uint64_t>(logs[i].term);
+        ok = writeAll(fd, &hdr, sizeof(hdr));
+                if (ok) ok = writeAll(fd, payload.data(), payload.size());
+            }
+        if (ok) {
+                if (::fsync(fd) == -1) ok = false;
+            }
+        close(fd);
+    return 0;
 }

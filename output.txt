@@ -1,0 +1,625 @@
+RaftNode 0 created. ElectionTimeout: 641 ms, HeartbeatInterval: 157 ms
+RaftNode 1 created. ElectionTimeout: 714 ms, HeartbeatInterval: 136 ms
+RaftNode 2 created. ElectionTimeout: 632 ms, HeartbeatInterval: 142 ms
+RaftNode 3 created. ElectionTimeout: 446 ms, HeartbeatInterval: 142 ms
+RaftNode 4 created. ElectionTimeout: 626 ms, HeartbeatInterval: 154 ms
+[Node 4] Follower timed out. Starting election.
+[Node 4] Starting election for term 1, votesGranted = 1
+[Node 4] Sending RequestVote to Node 0
+sendMessageToNode 0 type of RequestVote
+[Node 4] Sending RequestVote to Node 1
+sendMessageToNode 1 type of RequestVote
+[Node 4] Sending RequestVote to Node 2
+sendMessageToNode 2 type of RequestVote
+[Node 4] Sending RequestVote to Node 3
+sendMessageToNode 3 type of RequestVote
+[Node 1] processing message type RequestVote
+[Node 0] processing message type RequestVote
+[Node 3] processing message type RequestVote
+[Node 2] processing message type RequestVote
+[Node 3] VoteRequest from 4 term=1 granted=true
+sendMessageToNode 4 type of VoteResponse
+[Node 1] VoteRequest from 4 term=1 granted=true
+sendMessageToNode 4 type of VoteResponse
+[Node 2] VoteRequest from 4 term=1 granted=true
+sendMessageToNode 4 type of VoteResponse
+[Node 0] VoteRequest from 4 term=1 granted=true
+sendMessageToNode 4 type of VoteResponse
+[Node 4] processing message type VoteResponse
+[Node 4] VoteResponse: granted=true counted=true res.term=1 cur.term=1 status=1
+[Node 4] processing message type VoteResponse
+[Node 4] VoteResponse: granted=true counted=true res.term=1 cur.term=1 status=1
+[Node 4] processing message type VoteResponse
+[Node 4] VoteResponse: granted=true counted=true res.term=1 cur.term=1 status=1
+[Node 4] processing message type VoteResponse
+[Node 4] VoteResponse: granted=true counted=true res.term=1 cur.term=1 status=1
+[Node 4] Became Leader for term 1 with votes=5
+[Node 4] is Leader. Sending heartbeat. (Interval: 184 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 1] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=0
+[Node 0] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=0
+[Node 0] handled AppendEntries from 4 success=true logIndex=0
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=0
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=0
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=0
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=0
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=0
+[Node 4] is Leader. Sending heartbeat. (Interval: 110 ms)
+number of logs to send 5 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 0] processing message type AppendEntries
+[Node 1] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=5
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=5
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=5
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=5
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=5
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=5
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=5
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=5
+[Node 4] is Leader. Sending heartbeat. (Interval: 132 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 0] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=5
+[Node 1] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=5
+[Node 2] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=5
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=5
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=5
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=5
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=5
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=5
+[Node 4] is Leader. Sending heartbeat. (Interval: 194 ms)
+number of logs to send 2 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 2] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+[Node 1] processing message type AppendEntries
+[Node 0] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=7
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=7
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=7
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=7
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=7
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=7
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=7
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=7
+[Node 4] is Leader. Sending heartbeat. (Interval: 135 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=7
+[Node 1] processing message type AppendEntries
+[Node 0] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=7
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=7
+[Node 1] handled AppendEntries from 4 success=true logIndex=7
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=7
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=7
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=7
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=7
+[Node 4] is Leader. Sending heartbeat. (Interval: 170 ms)
+number of logs to send 2 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 0] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+[Node 1] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=9
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=9
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=9
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=9
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=9
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=9
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=9
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=9
+[Node 4] is Leader. Sending heartbeat. (Interval: 187 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 0] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=9
+[Node 1] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=9
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=9
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=9
+sendMessageToNode 3 type of AppendEntries
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=9
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=9
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=9
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=9
+[Node 4] is Leader. Sending heartbeat. (Interval: 197 ms)
+number of logs to send 1 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 0] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+[Node 1] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=10
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=10
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=10
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=10
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=10
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=10
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=10
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=10
+[Node 4] is Leader. Sending heartbeat. (Interval: 166 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 0] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+[Node 1] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] processing message type AppendEntries
+[Node 0] handled AppendEntries from 4 success=true logIndex=10
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=10
+[Node 2] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=10
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=10
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=10
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=10
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=10
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=10
+[Node 4] is Leader. Sending heartbeat. (Interval: 144 ms)
+number of logs to send 2 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+[Node 0] processing message type AppendEntries
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 1] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=12
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=12
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=12
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=12
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=12
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=12
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=12
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=12
+[Node 4] is Leader. Sending heartbeat. (Interval: 130 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 1] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+[Node 0] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=12
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+sendMessageToNode 4 type of AppendEntriesResponse
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=12
+[Node 1] handled AppendEntries from 4 success=true logIndex=12
+[Node 3] handled AppendEntries from 4 success=true logIndex=12
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=12
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=12
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=12
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=12
+[Node 4] is Leader. Sending heartbeat. (Interval: 130 ms)
+number of logs to send 2 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 0] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+[Node 1] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=14
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=14
+sendMessageToNode 4 type of AppendEntriesResponse
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=14
+[Node 3] handled AppendEntries from 4 success=true logIndex=14
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=14
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=14
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=14
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=14
+[Node 4] is Leader. Sending heartbeat. (Interval: 144 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 0] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=14
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=14
+[Node 1] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=14
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=14
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=14
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=14
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=14
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=14
+[Node 4] is Leader. Sending heartbeat. (Interval: 155 ms)
+number of logs to send 4 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 1] processing message type AppendEntries
+[Node 4] -> [Node 3] Log send.
+[Node 2] processing message type AppendEntries
+[Node 0] processing message type AppendEntries
+sendMessageToNode 3 type of AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=18
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=18
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=18
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=18
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=18
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=18
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=18
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=18
+[Node 4] is Leader. Sending heartbeat. (Interval: 131 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 0] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 4] -> [Node 2] Log send.
+[Node 0] handled AppendEntries from 4 success=true logIndex=18
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 1] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=18
+[Node 3] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=18
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=18
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=18
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=18
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=18
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=18
+[Node 4] is Leader. Sending heartbeat. (Interval: 135 ms)
+number of logs to send 2 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 2] processing message type AppendEntries
+[Node 1] processing message type AppendEntries
+[Node 0] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=20
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=20
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=20
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=20
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=20
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=20
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=20
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=20
+[Node 4] is Leader. Sending heartbeat. (Interval: 142 ms)
+number of logs to send 0 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 2] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] processing message type AppendEntries
+[Node 1] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=20
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=20
+[Node 2] handled AppendEntries from 4 success=true logIndex=20
+[Node 3] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=20
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=20
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=20
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=20
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=20
+[Node 4] is Leader. Sending heartbeat. (Interval: 197 ms)
+number of logs to send 3 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+[Node 0] processing message type AppendEntries
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 3] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+[Node 1] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=23
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=23
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=23
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=23
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=23
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=23
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=23
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=23
+[Node 4] is Leader. Sending heartbeat. (Interval: 153 ms)
+number of logs to send 5 
+[Node 4] Sending Log or heartbeat as Leader. term: 1
+[Node 4] -> [Node 0] Log send.
+sendMessageToNode 0 type of AppendEntries
+[Node 4] -> [Node 1] Log send.
+sendMessageToNode 1 type of AppendEntries
+[Node 4] -> [Node 2] Log send.
+sendMessageToNode 2 type of AppendEntries
+[Node 4] -> [Node 3] Log send.
+sendMessageToNode 3 type of AppendEntries
+[Node 1] processing message type AppendEntries
+[Node 2] processing message type AppendEntries
+[Node 3] processing message type AppendEntries
+[Node 0] processing message type AppendEntries
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 2] handled AppendEntries from 4 success=true logIndex=28
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 3] handled AppendEntries from 4 success=true logIndex=28
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 1] handled AppendEntries from 4 success=true logIndex=28
+sendMessageToNode 4 type of AppendEntriesResponse
+[Node 0] handled AppendEntries from 4 success=true logIndex=28
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 2 success=true followerLogIndex=28
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 3 success=true followerLogIndex=28
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 0 success=true followerLogIndex=28
+[Node 4] processing message type AppendEntriesResponse
+[Node 4] processed AppendEntriesResponse from 1 success=true followerLogIndex=28
