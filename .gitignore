@@ -1,2 +1,5 @@
 vgcore.*
 Raft_alg
+Makefile
+CMakeCache.txt
+CMakeFiles
