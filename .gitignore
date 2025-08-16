@@ -3,3 +3,4 @@ Raft_alg
 Makefile
 CMakeCache.txt
 CMakeFiles
+output.txt
