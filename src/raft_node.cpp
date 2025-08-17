@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -30,21 +31,43 @@ RaftNode::RaftNode(int nodeId)
     this->electionTimeout = getElectionTimeout();
     this->heartbeatInterval = getHeartbeatInterval();
     std::cout << "RaftNode " << id << " created. ElectionTimeout: " << electionTimeout.count() << " ms, HeartbeatInterval: " << heartbeatInterval.count() << " ms\n";
+
 }
 
 void RaftNode::checkAndCommitLogs(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
     if (this->current_status != Status::Leader) return;
+    const size_t n = nodes.size();
+    const int lastLogIndex = static_cast<int>(log.size());
     std::vector<int> sortedMatchIndexes;
-    for (size_t i = 0; i < nodes.size(); ++i) {
-        sortedMatchIndexes.push_back(this->matchIndex[i]);
+    if (matchIndex.size() != n) {
+        matchIndex.assign(n, 0);
     }
+    if (nextIndex.size() != n) {
+        nextIndex.assign(n, lastLogIndex + 1);
+    }
+    sortedMatchIndexes.reserve(n);
+    for (size_t i = 0; i < n; ++i) {
+        int m = (i < matchIndex.size()) ? matchIndex[i] : 0;
+        if (m < 0) m = 0;
+        if (m > lastLogIndex) m = lastLogIndex;
+        sortedMatchIndexes.push_back(m);
+    }
+
+    if (sortedMatchIndexes.empty()) return;
     std::sort(sortedMatchIndexes.begin(), sortedMatchIndexes.end());
-
-    int N = nodes.size();
-    int majorityIndex = sortedMatchIndexes[N / 2];
-
-    if (majorityIndex > this->commitIndex && this->log[majorityIndex - 1].term == this->currentTerm) {
-        this->commitIndex = majorityIndex;
+    int majorityIndex = sortedMatchIndexes[n / 2];
+    if (majorityIndex > lastLogIndex) majorityIndex = lastLogIndex;
+    if (majorityIndex > commitIndex && majorityIndex > 0) {
+        int vecIdx = majorityIndex - 1; // 0-based
+        if (vecIdx >= 0 && vecIdx < static_cast<int>(log.size())) {
+            if (log[vecIdx].term == currentTerm) {
+                commitIndex = majorityIndex;
+                {
+                    std::lock_guard<std::mutex> g(applied_commites);
+                    applyCommitted();
+                }
+            }
+        }
     }
 }
 void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
@@ -111,7 +134,6 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                             response.conflictTerm = this->log[temp->prevLogIndex - 1].term;
                             }
                    }else {
-                        // Apply Raft log conflict resolution: truncate on first mismatch, then append
                         int index = temp->prevLogIndex; // 1-based
                         for (size_t i = 0; i < temp->entries.size(); ++i) {
                             int li = index + 1 + (int)i; // log index (1-based)
@@ -124,22 +146,26 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                                 log.push_back(temp->entries[i]);
                             }
                         }
-                        // Advance commitIndex
                         if (temp->leaderCommit > commitIndex) {
                             commitIndex = std::min(temp->leaderCommit, (int)log.size());
+                            {
+                            std::lock_guard<std::mutex> Alock(applied_commites);
+                           applyCommitted();
+                            }
                         }
                     }
                 }
+
                 {
                     std::lock_guard<std::mutex> wlock(mutex_wal);
-                    if(appendWal(temp->entries,walPath) != 0){
+                    if(appendWal(temp->entries) == 0){
                         snapshot_appendWal_status = -1;
                     }
                     }
                 {
                     std::lock_guard<std::mutex> Elock(cerr_mutex);
                     if(snapshot_appendWal_status == -1){
-                        std::cerr << "error in append backup";
+                        std::cerr << "error in append backup \n";
                         exit(1);
                     }
                 }
@@ -304,17 +330,21 @@ int RaftNode::getLastLogTerm()  {
     return log.back().term;
 }
 void RaftNode::startElection(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
+   int snapshot_term;
+   int snapshot_votesGranted;
+   Status snapshot_status;
     {
         std::lock_guard<std::mutex> lock(mutex_election);
         this->current_status = Status::Candidate;
-        votesGranted++;
+        snapshot_votesGranted = votesGranted++;
         this->currentTerm++;
+        snapshot_term = currentTerm;
         this->votedFor = id;
     }
     {
     std::lock_guard<std::mutex> lock(cout_mutex);
-    std::cout << "[Node " << id << "] Starting election for term " << this->currentTerm
-              << ", votesGranted = " << votesGranted << "\n";
+    std::cout << "[Node " << id << "] Starting election for term " << snapshot_term
+              << ", votesGranted = " << snapshot_votesGranted << "\n";
     }
     const int lastIdx = (int)log.size();
     const int lastTerm = getLastLogTerm();
@@ -331,7 +361,7 @@ void RaftNode::startElection(const std::vector<std::unique_ptr<RaftNode>>& nodes
                 }
             sendMessageToNode(node->id, msg, nodes);
         }
-    bool won;
+    bool won = false;
     auto deadline = std::chrono::steady_clock::now() + electionTimeout;
     const size_t majority = nodes.size() / 2 + 1;
     heartbeatInterval = getHeartbeatInterval();
@@ -355,6 +385,7 @@ void RaftNode::startElection(const std::vector<std::unique_ptr<RaftNode>>& nodes
     }
     if(current_status == Candidate&& votesGranted >= (int)majority ){
         current_status = Status::Leader;
+        snapshot_status = current_status;
         const int myLast = (int)log.size();
         if ((int)nextIndex.size() < (int)nodes.size()) nextIndex.resize(nodes.size(), myLast + 1);
         if ((int)matchIndex.size() < (int)nodes.size()) matchIndex.resize(nodes.size(), 0);
@@ -370,17 +401,15 @@ void RaftNode::startElection(const std::vector<std::unique_ptr<RaftNode>>& nodes
 
         {
             std::lock_guard<std::mutex> lk(cout_mutex);
-            std::cout << "[Node " << id << "] Became Leader for term " << currentTerm
-                      << " with votes=" << votesGranted << "\n";
+            std::cout << "[Node " << id << "] Became Leader for term " << snapshot_term
+                      << " with votes=" << snapshot_votesGranted << "\n";
         }
     } else {
-        Status status_snapshot = current_status;
-        int votes_snapshot = votesGranted;
         lock.unlock();
         {
             std::lock_guard<std::mutex> lk(cout_mutex);
-            std::cout << "[Node " << id << "] Election not won (status=" << (int)status_snapshot
-                      << ", votes=" << votes_snapshot
+            std::cout << "[Node " << id << "] Election not won (status=" << (int)snapshot_status
+                      << ", votes=" << snapshot_votesGranted
                       << ", won=" << (won ? "true" : "false") << ")\n";
         }
     }
@@ -451,6 +480,15 @@ LogEntry RaftNode::deserialize(const std::vector<char>& buffer) {
     size_t offset = 0;
     std::memcpy(&entry.term, &buffer[offset], sizeof(entry.term));
     offset += sizeof(entry.term);
+
+    std::memcpy(&entry.op, &buffer[offset], sizeof(entry.op));
+    offset += sizeof(entry.op);
+
+    uint32_t key_length;
+    std::memcpy(&key_length, &buffer[offset], sizeof(key_length));
+    offset += sizeof(key_length);
+    entry.key.assign(&buffer[offset], key_length);
+
     uint32_t command_length;
     std::memcpy(&command_length, &buffer[offset], sizeof(command_length));
     offset += sizeof(command_length);
@@ -514,7 +552,11 @@ std::cout << "Successfully recovered hard state." << std::endl;
 }
 LogEntry create_log(int term_input){
     std::string command= "hello";
-    LogEntry new_log{ term_input,command};
+    std::string key = "ahoj";
+    std::mt19937 rand_gen(std::random_device{}());
+    std::uniform_int_distribution<int> num(0, 2);
+    Op op = static_cast<Op>(num(rand_gen));
+    LogEntry new_log{ term_input, op, key, command };
     return new_log;
 }
 void RaftNode::sendAppendEntries(Message msg,const std::vector<std::unique_ptr<RaftNode>>& nodes){
@@ -548,7 +590,7 @@ AppendEntries RaftNode::create_entries(int num_log,bool heartbeat){
     int snapshot = 0;
     {
         std::lock_guard<std::mutex> wlock(mutex_wal);
-        if(appendWal(entries,walPath) != 0){
+        if(appendWal(entries) == 0){
             snapshot = -1;
         }
     }
@@ -576,15 +618,17 @@ default: return "Unknown";
 }
 }
 std::vector<char> serializeHardState(uint64_t term, uint64_t vote) {
-    HardState state;
+    HardState state{};
     state.magic = 0xDEADBEEF;
     state.version = 1;
     state.currentTerm = term;
     state.votedFor = vote;
+    state.checksum = 0;
 
-    state.checksum = crc32(0L, reinterpret_cast<const Bytef*>(&state), sizeof(state) - sizeof(state.checksum));
+      size_t dataSize = sizeof(HardState) - sizeof(state.checksum);
+      uint32_t calculatedChecksum = crc32(0L, reinterpret_cast<const Bytef*>(&state), dataSize);
+      state.checksum = calculatedChecksum;
     std::vector<char> buffer(sizeof(HardState));
-
     std::memcpy(buffer.data(), &state, sizeof(HardState));
 
     return buffer;
@@ -603,7 +647,11 @@ static bool writeAll(int fd, const void* data, size_t len) {
     return true;
 }
 int RaftNode::saveHardState(){
-      FILE *file = fopen("./backup/hard_state.dat.tmp","w");
+    if(checkFile() == false){
+        return 0;
+    }
+    std::string path = hard_state_path + ".tpm";
+      FILE *file = fopen(path.c_str(),"wb");
       if (!file) {
               return -1;
           }
@@ -619,10 +667,10 @@ int RaftNode::saveHardState(){
                   return -1;
               }
           fclose(file);
-    if (rename("./backup/hard_state.dat.tmp", "./backup/hard_state.dat") == -1) {
+    if (rename(path.c_str(), hard_state_path.c_str()) == -1) {
             return -1;
         }
-    FILE* dir = fopen("./backup", "r");
+    FILE* dir = fopen(data_dir.c_str(), "r");
         if (dir) {
             fsync(fileno(dir));
             fclose(dir);
@@ -631,12 +679,20 @@ int RaftNode::saveHardState(){
 }
 std::vector<char> serialize(const LogEntry &entry) {
     std::vector<char> buffer;
-    size_t total_size = sizeof(entry.term) + entry.command.size() + sizeof(uint32_t);
+    size_t total_size = sizeof(entry.term) + entry.command.size() + sizeof(uint32_t) + sizeof(entry.op) + entry.key.size() + sizeof(uint32_t);
     buffer.resize(total_size);
 
         size_t offset = 0;
         std::memcpy(&buffer[offset], &entry.term, sizeof(entry.term));
         offset += sizeof(entry.term);
+
+        std::memcpy(&buffer[offset], &entry.op, sizeof(entry.op));
+        offset += sizeof(entry.op);
+
+        uint32_t key_length = entry.key.size();
+        std::memcpy(&buffer[offset], &key_length, sizeof(key_length));
+        offset += sizeof(key_length);
+        std::memcpy(&buffer[offset], entry.key.data(), entry.key.size());
 
         uint32_t command_length = entry.command.size();
         std::memcpy(&buffer[offset], &command_length, sizeof(command_length));
@@ -645,13 +701,24 @@ std::vector<char> serialize(const LogEntry &entry) {
         std::memcpy(&buffer[offset], entry.command.data(), entry.command.size());
         return buffer;
 }
-int RaftNode::appendWal(const std::vector<LogEntry> &logs,const std::string& walPath){
-    if (logs.empty()) return 0;
+int RaftNode::appendWal(const std::vector<LogEntry> &logs){
+    if(checkFile() == false){
+        {
+            std::lock_guard<std::mutex> Clock(cerr_mutex);
+            std::cerr << "error in checkFile \n";
+        }
+        return 0;
+    }
+    if (logs.empty()){
+     return -1; //hearbeat
+    }
     std::vector<char> walS;
-    int fd = open("./backup/walSave", O_WRONLY | O_CREAT | O_APPEND, 0644);
+    int fd = open(wal_path.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
         if (fd == -1) {
-            std::cerr << "Error opening file: " << strerror(errno) << std::endl;
-            return 1;
+
+            std::cerr << "Error opening file: " << strerror(errno) << std::endl << "\n";
+            std::cerr << wal_path.c_str() << "\n";
+            return 0;
         }
         bool ok = true;
     for(int i = 0;i < logs.size() && ok;i++){
@@ -667,7 +734,83 @@ int RaftNode::appendWal(const std::vector<LogEntry> &logs,const std::string& wal
             }
         if (ok) {
                 if (::fsync(fd) == -1) ok = false;
+            }else {
+                {
+                    std::lock_guard<std::mutex> Clock(cerr_mutex);
+                    std::cerr << "error in writeAll";
+                    return 0;
+                }
             }
         close(fd);
-    return 0;
+    return 1;
+}
+bool RaftNode::init_from_storage() {
+     struct stat st{};
+     if (stat("./backup", &st) == -1) {
+     if (mkdir("./backup", 0755) == -1 && errno != EEXIST) {
+     std::lock_guard<std::mutex> lock(cerr_mutex);
+     std::cerr << "[Node " << id << "] Failed to create backup dir: " << strerror(errno) << "\n";
+     return false;
+     }
+     }
+     data_dir = "./backup/node-" + std::to_string(id);
+     hard_state_path = data_dir + "/hard_state.dat";
+     wal_path = data_dir + "/walSave";
+     if (stat(data_dir.c_str(), &st) == -1) {
+     if (mkdir(data_dir.c_str(), 0755) == -1 && errno != EEXIST) {
+     std::lock_guard<std::mutex> lock(cerr_mutex);
+     std::cerr << "[Node " << id << "] Failed to create backup dir: " << "./backup" << data_dir.c_str() << strerror(errno) << "\n";
+     return false;
+     }
+     }
+     HardState hs = recovery_Hard_state(hard_state_path);
+     currentTerm = hs.currentTerm;
+     votedFor = hs.votedFor;
+     auto recovered = recovery_wal(wal_path);
+     log = std::move(recovered);
+     commitIndex = 0;
+     lastApplied = 0;
+     current_status = Status::Follower;
+     applyCommitted();
+     return true;
+     }
+
+     void RaftNode::applyCommitted() {
+            const int lastLogIndex = static_cast<int>(log.size());
+            if (commitIndex > lastLogIndex) commitIndex = lastLogIndex;
+            while (lastApplied < commitIndex) {
+                int nextIndex = lastApplied + 1;
+                int vecIdx = nextIndex - 1; // 0-based
+                if (vecIdx < 0 || vecIdx >= static_cast<int>(log.size())) break;
+                const LogEntry& e = log[vecIdx];
+                lastApplied = nextIndex;
+            }
+            }
+bool RaftNode::checkFile(){
+static std::once_flag init_flag;
+std::call_once(init_flag, [&]{
+     struct stat st;
+    if (stat("./backup", &st) == -1) {
+           if (mkdir("./backup", 0755) == -1 && errno != EEXIST) {
+               std::lock_guard<std::mutex> lock(cerr_mutex);
+               std::cerr << "[Node " << id << "] mkdir(\"./backup\") failed: "
+                         << strerror(errno) << std::endl;
+               throw std::runtime_error("backup dir create failed");
+           }
+       }
+
+       data_dir        = std::string("./backup/node-") + std::to_string(id);
+       hard_state_path = data_dir + "/hard_state.dat";
+       wal_path        = data_dir + "/walSave";
+
+       if (stat(data_dir.c_str(), &st) == -1) {
+           if (mkdir(data_dir.c_str(), 0755) == -1 && errno != EEXIST) {
+               std::lock_guard<std::mutex> lock(cerr_mutex);
+               std::cerr << "[Node " << id << "] mkdir(\"" << data_dir << "\") failed: "
+                         << strerror(errno) << std::endl;
+               throw std::runtime_error("node dir create failed");
+           }
+       }
+   });
+   return true;
 }

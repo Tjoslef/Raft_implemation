@@ -1,7 +1,9 @@
 #include <condition_variable>
+#include <cwchar>
 #include <mutex>
 #include <queue>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 #include <chrono>
@@ -17,7 +19,11 @@ enum Status{
     Candidate = 1,
     Follower = 2
 };
-
+enum Op : uint8_t {
+    NoOp=0,
+    Put=1,
+    Del=2
+};
 enum class MessageType {
     VoteRequest,
     VoteResponse,
@@ -25,8 +31,10 @@ enum class MessageType {
     AppendEntriesResponse
 };
 struct LogEntry{
-      int term;
-      std::string command;
+    int term;
+    Op op;
+    std::string key;
+    std::string command;
 };
 struct VoteRequest {
     int term;
@@ -57,7 +65,6 @@ struct AppendEntries {
     int leaderId;
     int prevLogIndex;
     int prevLogTerm;
-    //The new log entries to append
     std::vector<LogEntry> entries;
     int leaderCommit;
 };
@@ -81,9 +88,16 @@ struct Message {
     MessageType type;
     std::variant<VoteRequest, VoteResponse, AppendEntries, AppendEntriesResponse> data;
 };
+class StateMachine {
+public:
+void apply(std::vector<LogEntry> &logs);
+private:
+std::unordered_map<std::string,std::string > kv;
+};
 class RaftNode {
     public:
     int id;
+    std::string data_dir, hard_state_path, wal_path;
     explicit RaftNode(int nodeId);
         RaftNode()
         : rand_gen(std::chrono::high_resolution_clock::now().time_since_epoch().count()),
@@ -113,6 +127,10 @@ class RaftNode {
         int appendWal(const std::vector<LogEntry> &logs,const std::string& walPath);
         LogEntry deserialize(const std::vector<char>& buffer);
         std::vector<LogEntry>recovery_wal(const std::string& walPath);
+        int appendWal(const std::vector<LogEntry> &logs);
+        bool init_from_storage();
+        void applyCommitted();
+        bool checkFile();
     private:
         std::random_device rd;
     std::mt19937 rand_gen;
@@ -123,20 +141,21 @@ class RaftNode {
     int votedFor = -1;
     int lastLogIndex = 0;
     std::vector<LogEntry> log;
-    int votesGranted;
+    int votesGranted = 0;
     int commitIndex = 0;
     int lastApplied = 0;
     std::vector<int> peers;
     std::chrono::milliseconds electionTimeout;
     std::chrono::milliseconds heartbeatInterval;
     std::chrono::steady_clock::time_point nextHeartbeatTime;
-
+    StateMachine stateMachine;
     std::queue<Message> incomingMessages;
     std::mutex mutex_hearbeat;
     std::mutex mutex_hard_state;
     std::mutex mutex_wal;
     std::mutex mutex_election;
     std::mutex mutex_message;
+    std::mutex applied_commites;
     std::mutex message_queue_for_loop_mutex;
     std::queue<Message> message_queue_for_loop;
     bool heartbeatReceived = false;

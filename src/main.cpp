@@ -10,6 +10,7 @@ int main(){
         nodes.reserve(clusterSize);
     for (int i = 0;i < clusterSize;i++) {
         nodes.push_back(std::make_unique<RaftNode>(i));
+        nodes[i]->init_from_storage();
     }
     auto start_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
     for(auto &node:nodes){
