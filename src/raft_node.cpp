@@ -88,6 +88,10 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                     electionTimeout = getElectionTimeout();
                     heartbeatInterval = getHeartbeatInterval();
                     {
+                        std::lock_guard<std::mutex> Llock(mutex_election);
+                        this->lastLeader = temp->leaderId;
+                    }
+                    {
                         std::lock_guard<std::mutex> hlock(mutex_hearbeat);
                         heartbeatReceived = true;
                     }
@@ -296,7 +300,81 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                 responseMsg.data = response;
                 sendMessageToNode(temp->candidateId, responseMsg, nodes);
             }
-        } else {
+        }else if (msg.type == MessageType::ClientRequest) {
+             if(auto temp = std::get_if<ClientRequest>(&msg.data)){
+                 Status Cstatus;
+                {
+                    std::lock_guard<std::mutex> lock(mutex_election);
+                    Cstatus = this->current_status;
+                }
+                int lastLeader = -1;
+                       {
+                           std::lock_guard<std::mutex> lock(mutex_election);
+                           Cstatus = this->current_status;
+                           lastLeader = this->lastLeader;
+                       }
+            if(Cstatus != Leader){
+                ClientResponse response = {};
+                response.id = this->id;
+                response.success = false;
+                response.lastLeaderId = lastLeader;
+                Message msg;
+                msg.data = response;
+                msg.type = MessageType::ClientResponse;
+                sendMessageToNode(temp->id, msg, nodes);
+            }else {
+                LogEntry newLog = {};
+                {
+                    std::lock_guard<std::mutex> lock(mutex_election);
+                    newLog.key = temp->key;
+                    newLog.term = this->currentTerm;
+                    newLog.op = temp->op;
+                }
+
+                std::vector<LogEntry> entries;
+                entries.reserve(1);
+                entries.push_back(newLog);
+
+                int wal_rc = 0;
+                {
+                    std::lock_guard<std::mutex> wlock(mutex_wal);
+                    wal_rc = appendWal(entries);
+                }
+                if (wal_rc != 0) {
+                    ClientResponse response = {};
+                    response.id = this->id;
+                    response.success = false;
+                    Message response_msg;
+                    response_msg.data = response;
+                    response_msg.type = MessageType::ClientResponse;
+                    sendMessageToNode(temp->id, response_msg, nodes);
+                    std::lock_guard<std::mutex> el(cerr_mutex);
+                    std::cerr << "error in backup" << std::endl;
+                    return;
+                }
+                int newIndex = 0;
+                int prevLogIndex = 0;
+                int prevLogTerm = 0;
+                int commit_index = 0;
+                {
+                    std::lock_guard<std::mutex> lock(mutex_election);
+                    this->log.insert(this->log.end(), entries.begin(), entries.end());
+                    newIndex = (int)this->log.size();
+                    prevLogIndex = newIndex - 1;
+                    prevLogTerm  = (prevLogIndex > 0) ? this->log[prevLogIndex - 1].term : 0;
+                    commit_index = this->commitIndex;
+
+                }
+
+                AppendEntries new_answer{this->currentTerm, this->id, prevLogIndex, prevLogTerm, entries, commit_index};
+                Message append_msg;
+                append_msg.type = MessageType::AppendEntries;
+                append_msg.data = new_answer;
+                sendAppendEntries(append_msg, nodes);
+
+            }
+                }
+             }else {
             {
                 std::lock_guard<std::mutex> lk(cout_mutex);
                 std::cout << "[Node " << id << "] Unknown message type received\n";
@@ -396,7 +474,7 @@ void RaftNode::startElection(const std::vector<std::unique_ptr<RaftNode>>& nodes
             matchIndex[n->id] = 0;
         }
         matchIndex[this->id] = myLast;
-
+        lastLeader = this->id;
         lock.unlock();
 
         {
@@ -451,15 +529,7 @@ int RaftNode::Loop(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
                     do {
                     nextHeartbeatTime += heartbeatInterval;
                     } while (nextHeartbeatTime <= now + heartbeatInterval);
-                }else {
-                    std::mt19937 rand_gen(std::random_device{}());
-                    std::uniform_int_distribution<int> num_entries_dist(1, 5);
-                    num_logs_to_send = num_entries_dist(rand_gen);
-                }
-                {
-                std::lock_guard<std::mutex> lock(cout_mutex);
-                std::cout << "number of logs to send " << num_logs_to_send << " \n";
-                }
+            }
             AppendEntries log_entries_msg = create_entries(num_logs_to_send,heartbeat_send);
             Message msg;
             msg.type = MessageType::AppendEntries;
@@ -489,10 +559,6 @@ LogEntry RaftNode::deserialize(const std::vector<char>& buffer) {
     offset += sizeof(key_length);
     entry.key.assign(&buffer[offset], key_length);
 
-    uint32_t command_length;
-    std::memcpy(&command_length, &buffer[offset], sizeof(command_length));
-    offset += sizeof(command_length);
-    entry.command.assign(&buffer[offset], command_length);
 
     return entry;
 }
@@ -551,12 +617,11 @@ std::cout << "Successfully recovered hard state." << std::endl;
     return hard_state;
 }
 LogEntry create_log(int term_input){
-    std::string command= "hello";
     std::string key = "ahoj";
     std::mt19937 rand_gen(std::random_device{}());
     std::uniform_int_distribution<int> num(0, 2);
     Op op = static_cast<Op>(num(rand_gen));
-    LogEntry new_log{ term_input, op, key, command };
+    LogEntry new_log{ term_input, op, key};
     return new_log;
 }
 void RaftNode::sendAppendEntries(Message msg,const std::vector<std::unique_ptr<RaftNode>>& nodes){
@@ -592,6 +657,7 @@ AppendEntries RaftNode::create_entries(int num_log,bool heartbeat){
         std::lock_guard<std::mutex> wlock(mutex_wal);
         if(appendWal(entries) == 0){
             snapshot = -1;
+
         }
     }
     {
@@ -679,7 +745,7 @@ int RaftNode::saveHardState(){
 }
 std::vector<char> serialize(const LogEntry &entry) {
     std::vector<char> buffer;
-    size_t total_size = sizeof(entry.term) + entry.command.size() + sizeof(uint32_t) + sizeof(entry.op) + entry.key.size() + sizeof(uint32_t);
+    size_t total_size = sizeof(entry.term) + sizeof(uint32_t) + sizeof(entry.op) + entry.key.size() + sizeof(uint32_t);
     buffer.resize(total_size);
 
         size_t offset = 0;
@@ -694,11 +760,6 @@ std::vector<char> serialize(const LogEntry &entry) {
         offset += sizeof(key_length);
         std::memcpy(&buffer[offset], entry.key.data(), entry.key.size());
 
-        uint32_t command_length = entry.command.size();
-        std::memcpy(&buffer[offset], &command_length, sizeof(command_length));
-        offset += sizeof(command_length);
-
-        std::memcpy(&buffer[offset], entry.command.data(), entry.command.size());
         return buffer;
 }
 int RaftNode::appendWal(const std::vector<LogEntry> &logs){

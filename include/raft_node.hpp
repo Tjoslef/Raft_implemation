@@ -28,13 +28,14 @@ enum class MessageType {
     VoteRequest,
     VoteResponse,
     AppendEntries,
-    AppendEntriesResponse
+    AppendEntriesResponse,
+    ClientRequest,
+    ClientResponse
 };
 struct LogEntry{
     int term;
     Op op;
     std::string key;
-    std::string command;
 };
 struct VoteRequest {
     int term;
@@ -68,6 +69,16 @@ struct AppendEntries {
     std::vector<LogEntry> entries;
     int leaderCommit;
 };
+struct ClientRequest {
+    int id;
+    std::string key;
+    Op op;
+};
+struct ClientResponse {
+    int id;
+    int success;
+    int lastLeaderId;
+};
 //answer to log
 struct AppendEntriesResponse {
     int responderId;
@@ -86,7 +97,7 @@ struct HardState {
 };
 struct Message {
     MessageType type;
-    std::variant<VoteRequest, VoteResponse, AppendEntries, AppendEntriesResponse> data;
+    std::variant<VoteRequest, VoteResponse, AppendEntries, AppendEntriesResponse,ClientRequest,ClientResponse> data;
 };
 class StateMachine {
 public:
@@ -94,10 +105,32 @@ void apply(std::vector<LogEntry> &logs);
 private:
 std::unordered_map<std::string,std::string > kv;
 };
+template<typename T>
+class ThreadSafeQueue {
+private:
+    std::queue<T> q;
+    std::mutex m;
+    std::condition_variable cv_client_queue;
+    public:
+        void push(T value) {
+            std::lock_guard<std::mutex> lock(m);
+            q.push(std::move(value));
+            cv_client_queue.notify_one();
+        }
+
+        T pop() {
+            std::unique_lock<std::mutex> lock(m);
+            cv_client_queue.wait(lock, [this] { return !q.empty(); });
+            T value = std::move(q.front());
+            q.pop();
+            return value;
+        }
+};
 class RaftNode {
     public:
     int id;
     std::string data_dir, hard_state_path, wal_path;
+
     explicit RaftNode(int nodeId);
         RaftNode()
         : rand_gen(std::chrono::high_resolution_clock::now().time_since_epoch().count()),
@@ -131,6 +164,7 @@ class RaftNode {
         bool init_from_storage();
         void applyCommitted();
         bool checkFile();
+        void sendClient(ThreadSafeQueue<std::string>& inputQueue,const std::vector<std::unique_ptr<RaftNode>>& nodes);
     private:
         std::random_device rd;
     std::mt19937 rand_gen;
@@ -149,19 +183,25 @@ class RaftNode {
     std::chrono::milliseconds heartbeatInterval;
     std::chrono::steady_clock::time_point nextHeartbeatTime;
     StateMachine stateMachine;
+    ThreadSafeQueue<std::string> clientInputQueue;
     std::queue<Message> incomingMessages;
     std::mutex mutex_hearbeat;
     std::mutex mutex_hard_state;
     std::mutex mutex_wal;
     std::mutex mutex_election;
     std::mutex mutex_message;
+    std::mutex mutex_message_sent;
     std::mutex applied_commites;
     std::mutex message_queue_for_loop_mutex;
     std::queue<Message> message_queue_for_loop;
     bool heartbeatReceived = false;
+    bool message_sent = false;
+    int lastLeader;
     std::condition_variable cv_heartbeat;
     std::condition_variable cv;
     std::condition_variable cv_incoming_message;
+    std::condition_variable cv_incoming_log;
+    std::condition_variable cv_client_message;
     std::vector<int> nextIndex;
     std::vector<int> matchIndex;
 };

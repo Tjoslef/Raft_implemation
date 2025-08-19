@@ -5,3 +5,5 @@ CMakeCache.txt
 CMakeFiles
 output.txt
 backup
+cmake_install.cmake
+.tpm
