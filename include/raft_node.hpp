@@ -1,5 +1,6 @@
 #include <condition_variable>
 #include <cwchar>
+#include <atomic>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -68,11 +69,13 @@ struct AppendEntries {
     int prevLogTerm;
     std::vector<LogEntry> entries;
     int leaderCommit;
+    int correlationId;
 };
 struct ClientRequest {
     int id;
     std::string key;
     Op op;
+    int correlationId;
 };
 struct ClientResponse {
     int id;
@@ -87,6 +90,7 @@ struct AppendEntriesResponse {
     int conflictTerm = -1;
     int conflictIndex = -1;
     int logIndex = -1;
+    int correlationId;
 };
 struct HardState {
     uint32_t magic;
@@ -94,6 +98,11 @@ struct HardState {
     uint64_t currentTerm;
     uint64_t votedFor;
     uint32_t checksum;
+};
+struct CommitWaiter {
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool committed = false;
 };
 struct Message {
     MessageType type;
@@ -152,19 +161,21 @@ class RaftNode {
         void receivingMessage(std::vector<std::unique_ptr<RaftNode>> &nodes);
         void sendMessageToNode(int nodeId, const Message& msg, const std::vector<std::unique_ptr<RaftNode>>& nodes);
         std::string messageTypeToString(MessageType type);
-        AppendEntries create_entries(int num_log,bool heartbeat);
+        AppendEntries create_heartbeat(int num_log,bool heartbeat);
         void sendAppendEntries(Message msg,const std::vector<std::unique_ptr<RaftNode>>& nodes);
         void processIncomingMessages(const std::vector<std::unique_ptr<RaftNode>>& nodes);
-        void checkAndCommitLogs(const std::vector<std::unique_ptr<RaftNode>>& nodes);
+        void checkAndCommitLogs(const std::vector<std::unique_ptr<RaftNode>>& nodes,int correlationId);
         int saveHardState();
         int appendWal(const std::vector<LogEntry> &logs,const std::string& walPath);
         LogEntry deserialize(const std::vector<char>& buffer);
         std::vector<LogEntry>recovery_wal(const std::string& walPath);
         int appendWal(const std::vector<LogEntry> &logs);
         bool init_from_storage();
-        void applyCommitted();
+        void notifyWaiter(int correlation_id);
+        void applyCommitted(int correlationId);
         bool checkFile();
         void sendClient(ThreadSafeQueue<std::string>& inputQueue,const std::vector<std::unique_ptr<RaftNode>>& nodes);
+        void commands(ThreadSafeQueue<std::string>& inputQueue);
     private:
         std::random_device rd;
     std::mt19937 rand_gen;
@@ -190,13 +201,18 @@ class RaftNode {
     std::mutex mutex_wal;
     std::mutex mutex_election;
     std::mutex mutex_message;
+    std::mutex cerr_mutex;
+    std::mutex cout_mutex;
     std::mutex mutex_message_sent;
     std::mutex applied_commites;
     std::mutex message_queue_for_loop_mutex;
+    std::mutex waiters_mutex;
     std::queue<Message> message_queue_for_loop;
     bool heartbeatReceived = false;
     bool message_sent = false;
     int lastLeader;
+    std::atomic<int> nextRequestId {1};
+    std::unordered_map<int, std::shared_ptr<CommitWaiter>> waiters;
     std::condition_variable cv_heartbeat;
     std::condition_variable cv;
     std::condition_variable cv_incoming_message;

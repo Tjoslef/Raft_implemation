@@ -1,4 +1,5 @@
 #include <chrono>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -7,7 +8,7 @@
 int main(){
     std::vector<std::unique_ptr<RaftNode>> nodes;
     std::vector<std::thread> threads;
-        const int clusterSize = 6;
+        const int clusterSize = 7;
         nodes.reserve(clusterSize);
     for (int i = 0;i < clusterSize;i++) {
         nodes.push_back(std::make_unique<RaftNode>(i));
@@ -16,14 +17,10 @@ int main(){
     ThreadSafeQueue<std::string> clientInputQueue;
     auto raftNode = std::make_unique<RaftNode>();
     raftNode->id = 0;
+    //waiter
     std::thread client_thread(&RaftNode::sendClient,nodes[0].get(),std::ref(clientInputQueue), std::ref(nodes));
-    std::cout << "Enter commands to send to the Raft node (type 'exit' to quit):" << std::endl;
-        std::string input;
-        while (std::getline(std::cin, input) && input != "exit") {
-            clientInputQueue.push(input);
-        }
-    clientInputQueue.push("exit");
-
+    //thread for user input
+    std::thread input_thread(&RaftNode::commands,nodes[1].get(),std::ref(clientInputQueue));
     auto start_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
     for(auto &node:nodes){
         threads.emplace_back([nodePtr = node.get(), &nodes, start_time]() {

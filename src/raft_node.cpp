@@ -19,8 +19,6 @@
 #include <vector>
 #include <zconf.h>
 #include <zlib.h>
-std::mutex cerr_mutex;
-std::mutex cout_mutex;
 const std::string& walPath = "./backup/walSave";
 RaftNode::RaftNode(int nodeId)
     : id(nodeId),
@@ -34,7 +32,7 @@ RaftNode::RaftNode(int nodeId)
 
 }
 
-void RaftNode::checkAndCommitLogs(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
+void RaftNode::checkAndCommitLogs(const std::vector<std::unique_ptr<RaftNode>>& nodes,int correlationId) {
     if (this->current_status != Status::Leader) return;
     const size_t n = nodes.size();
     const int lastLogIndex = static_cast<int>(log.size());
@@ -64,7 +62,7 @@ void RaftNode::checkAndCommitLogs(const std::vector<std::unique_ptr<RaftNode>>& 
                 commitIndex = majorityIndex;
                 {
                     std::lock_guard<std::mutex> g(applied_commites);
-                    applyCommitted();
+                    applyCommitted(correlationId);
                 }
             }
         }
@@ -125,6 +123,7 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                     response.logIndex = (int)this->log.size();
                     response.conflictIndex = 0;
                     response.conflictTerm = 0;
+                    response.correlationId = temp->correlationId;
                     if(!temp->entries.empty()){
                         bool log_ok = (this->log.size() >= temp->prevLogIndex &&
                         (temp->prevLogIndex == 0 || this->log[temp->prevLogIndex - 1].term == temp->prevLogTerm));
@@ -154,7 +153,7 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                             commitIndex = std::min(temp->leaderCommit, (int)log.size());
                             {
                             std::lock_guard<std::mutex> Alock(applied_commites);
-                           applyCommitted();
+                           applyCommitted(temp->correlationId);
                             }
                         }
                     }
@@ -162,7 +161,7 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
 
                 {
                     std::lock_guard<std::mutex> wlock(mutex_wal);
-                    if(appendWal(temp->entries) == 0){
+                    if(appendWal(temp->entries) != 0){
                         snapshot_appendWal_status = -1;
                     }
                     }
@@ -205,7 +204,7 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                             if ((int)this->matchIndex.size() > temp->responderId) {
                                 this->matchIndex[temp->responderId] = temp->logIndex;
                             }
-                            checkAndCommitLogs(nodes);
+                            checkAndCommitLogs(nodes,temp->correlationId);
                         } else {
                             if ((int)this->nextIndex.size() > temp->responderId &&
                                 this->nextIndex[temp->responderId] > 1) {
@@ -301,80 +300,92 @@ void RaftNode::processIncomingMessages(const std::vector<std::unique_ptr<RaftNod
                 sendMessageToNode(temp->candidateId, responseMsg, nodes);
             }
         }else if (msg.type == MessageType::ClientRequest) {
-             if(auto temp = std::get_if<ClientRequest>(&msg.data)){
-                 Status Cstatus;
+            if (auto temp = std::get_if<ClientRequest>(&msg.data)) {
+                // Debug print: Client request received
+                {
+                    std::lock_guard<std::mutex> lk(cout_mutex);
+                    std::cout << "Node " << this->id << " received a ClientRequest for key: " << temp->key
+                              << ", op: " << static_cast<int>(temp->op)
+                              << ", correlationId: " << temp->correlationId << ".\n";
+                }
+
+                Status Cstatus;
+                int last_leader;
                 {
                     std::lock_guard<std::mutex> lock(mutex_election);
                     Cstatus = this->current_status;
-                }
-                int lastLeader = -1;
-                       {
-                           std::lock_guard<std::mutex> lock(mutex_election);
-                           Cstatus = this->current_status;
-                           lastLeader = this->lastLeader;
-                       }
-            if(Cstatus != Leader){
-                ClientResponse response = {};
-                response.id = this->id;
-                response.success = false;
-                response.lastLeaderId = lastLeader;
-                Message msg;
-                msg.data = response;
-                msg.type = MessageType::ClientResponse;
-                sendMessageToNode(temp->id, msg, nodes);
-            }else {
-                LogEntry newLog = {};
-                {
-                    std::lock_guard<std::mutex> lock(mutex_election);
-                    newLog.key = temp->key;
-                    newLog.term = this->currentTerm;
-                    newLog.op = temp->op;
+                    last_leader = this->lastLeader;
                 }
 
-                std::vector<LogEntry> entries;
-                entries.reserve(1);
-                entries.push_back(newLog);
+                if (Cstatus != Leader) {
+                    // trying again to find leader
+                    {
+                        std::lock_guard<std::mutex> lk(cout_mutex);
+                        std::cout << "Node " << this->id << " is a " << (Cstatus == Follower ? "Follower" : "Candidate")
+                                  << ". Forwarding request to last known leader: " << last_leader << ".\n";
+                    }
+                    sendMessageToNode(last_leader, msg, nodes);
+                } else {
+                    {
+                        std::lock_guard<std::mutex> lk(cout_mutex);
+                        std::cout << "Node " << this->id << " is the leader. Processing request locally.\n";
+                    }
+                    LogEntry newLog = {};
+                    {
+                        std::lock_guard<std::mutex> lock(mutex_election);
+                        newLog.key = temp->key;
+                        newLog.term = this->currentTerm;
+                        newLog.op = temp->op;
+                    }
 
-                int wal_rc = 0;
-                {
-                    std::lock_guard<std::mutex> wlock(mutex_wal);
-                    wal_rc = appendWal(entries);
+                    std::vector<LogEntry> entries;
+                    entries.reserve(1);
+                    entries.push_back(newLog);
+
+                    int wal_rc = 0;
+                    {
+                        std::lock_guard<std::mutex> wlock(mutex_wal);
+                        wal_rc = appendWal(entries);
+                    }
+                    if (wal_rc != 0) {
+                        ClientResponse response = {};
+                        response.id = this->id;
+                        response.success = false;
+                        Message response_msg;
+                        response_msg.data = response;
+                        response_msg.type = MessageType::ClientResponse;
+                        sendMessageToNode(temp->id, response_msg, nodes);
+                        std::lock_guard<std::mutex> el(cerr_mutex);
+                        std::cerr << "Node " << this->id << " ERROR: failed to backup log entry to WAL." << std::endl;
+                        return;
+                    }
+
+                    int newIndex = 0;
+                    int prevLogIndex = 0;
+                    int prevLogTerm = 0;
+                    int commit_index = 0;
+                    {
+                        std::lock_guard<std::mutex> lock(mutex_election);
+                        this->log.insert(this->log.end(), entries.begin(), entries.end());
+                        newIndex = (int)this->log.size();
+                        prevLogIndex = newIndex - 1;
+                        prevLogTerm = (prevLogIndex > 0) ? this->log[prevLogIndex - 1].term : 0;
+                        commit_index = this->commitIndex;
+                    }
+                    {
+                        std::lock_guard<std::mutex> lk(cout_mutex);
+                        std::cout << "Node " << this->id << " added new log entry at index " << newIndex
+                                  << " (term " << newLog.term << ") for key: " << newLog.key << ".\n";
+                    }
+
+                    AppendEntries new_answer{this->currentTerm, this->id, prevLogIndex, prevLogTerm, entries, commit_index, temp->correlationId};
+                    Message append_msg;
+                    append_msg.type = MessageType::AppendEntries;
+                    append_msg.data = new_answer;
+                    sendAppendEntries(append_msg, nodes);
                 }
-                if (wal_rc != 0) {
-                    ClientResponse response = {};
-                    response.id = this->id;
-                    response.success = false;
-                    Message response_msg;
-                    response_msg.data = response;
-                    response_msg.type = MessageType::ClientResponse;
-                    sendMessageToNode(temp->id, response_msg, nodes);
-                    std::lock_guard<std::mutex> el(cerr_mutex);
-                    std::cerr << "error in backup" << std::endl;
-                    return;
-                }
-                int newIndex = 0;
-                int prevLogIndex = 0;
-                int prevLogTerm = 0;
-                int commit_index = 0;
-                {
-                    std::lock_guard<std::mutex> lock(mutex_election);
-                    this->log.insert(this->log.end(), entries.begin(), entries.end());
-                    newIndex = (int)this->log.size();
-                    prevLogIndex = newIndex - 1;
-                    prevLogTerm  = (prevLogIndex > 0) ? this->log[prevLogIndex - 1].term : 0;
-                    commit_index = this->commitIndex;
-
-                }
-
-                AppendEntries new_answer{this->currentTerm, this->id, prevLogIndex, prevLogTerm, entries, commit_index};
-                Message append_msg;
-                append_msg.type = MessageType::AppendEntries;
-                append_msg.data = new_answer;
-                sendAppendEntries(append_msg, nodes);
-
             }
-                }
-             }else {
+        }else {
             {
                 std::lock_guard<std::mutex> lk(cout_mutex);
                 std::cout << "[Node " << id << "] Unknown message type received\n";
@@ -400,7 +411,6 @@ void RaftNode::sendMessageToNode(int nodeId, const Message& msg, const std::vect
     }
     {
         std::lock_guard<std::mutex> lock(cout_mutex);
-   std::cout << "sendMessageToNode " << nodeId << " type of " << messageTypeToString(msg.type) << "\n";
     }
 }
 int RaftNode::getLastLogTerm()  {
@@ -434,8 +444,6 @@ void RaftNode::startElection(const std::vector<std::unique_ptr<RaftNode>>& nodes
                 msg.data = voteReq;
                 {
                     std::lock_guard<std::mutex> lk(cout_mutex);
-                    std::cout << "[Node " << id << "] Sending " << messageTypeToString(msg.type)
-                                << " to Node " << node->id << "\n";
                 }
             sendMessageToNode(node->id, msg, nodes);
         }
@@ -530,7 +538,7 @@ int RaftNode::Loop(const std::vector<std::unique_ptr<RaftNode>>& nodes) {
                     nextHeartbeatTime += heartbeatInterval;
                     } while (nextHeartbeatTime <= now + heartbeatInterval);
             }
-            AppendEntries log_entries_msg = create_entries(num_logs_to_send,heartbeat_send);
+            AppendEntries log_entries_msg = create_heartbeat(num_logs_to_send,heartbeat_send);
             Message msg;
             msg.type = MessageType::AppendEntries;
             msg.data = log_entries_msg;
@@ -633,13 +641,13 @@ void RaftNode::sendAppendEntries(Message msg,const std::vector<std::unique_ptr<R
         if (node.get() != this) {
         {
         std::lock_guard<std::mutex> lock(cout_mutex);
-        std::cout << "[Node " << id << "] -> [Node " << node->id << "] Log send.\n";
+        std::cout << "[Node " << id << "] -> [Node " << node->id << "] heartbeat_sent/log.\n";
         }
         sendMessageToNode(node->id, msg,nodes);
         }
     }
 }
-AppendEntries RaftNode::create_entries(int num_log,bool heartbeat){
+AppendEntries RaftNode::create_heartbeat(int num_log,bool heartbeat){
     int term = this->currentTerm;
     int leaderId = this->id;
     const int oldLast = static_cast<int>(this->log.size());
@@ -655,7 +663,7 @@ AppendEntries RaftNode::create_entries(int num_log,bool heartbeat){
     int snapshot = 0;
     {
         std::lock_guard<std::mutex> wlock(mutex_wal);
-        if(appendWal(entries) == 0){
+        if(appendWal(entries) != 0){
             snapshot = -1;
 
         }
@@ -680,6 +688,8 @@ case MessageType::AppendEntries: return "AppendEntries";
 case MessageType::AppendEntriesResponse: return "AppendEntriesResponse";
 case MessageType::VoteRequest: return "RequestVote";
 case MessageType::VoteResponse: return "VoteResponse";
+case MessageType::ClientRequest: return "ClientRequest";
+case MessageType::ClientResponse: return "ClientResponse";
 default: return "Unknown";
 }
 }
@@ -768,10 +778,10 @@ int RaftNode::appendWal(const std::vector<LogEntry> &logs){
             std::lock_guard<std::mutex> Clock(cerr_mutex);
             std::cerr << "error in checkFile \n";
         }
-        return 0;
+        return 1;
     }
     if (logs.empty()){
-     return -1; //hearbeat
+     return 0; //hearbeat
     }
     std::vector<char> walS;
     int fd = open(wal_path.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
@@ -799,11 +809,11 @@ int RaftNode::appendWal(const std::vector<LogEntry> &logs){
                 {
                     std::lock_guard<std::mutex> Clock(cerr_mutex);
                     std::cerr << "error in writeAll";
-                    return 0;
+                    return 1;
                 }
             }
         close(fd);
-    return 1;
+    return 0;
 }
 bool RaftNode::init_from_storage() {
      struct stat st{};
@@ -832,11 +842,11 @@ bool RaftNode::init_from_storage() {
      commitIndex = 0;
      lastApplied = 0;
      current_status = Status::Follower;
-     applyCommitted();
+     applyCommitted(-1);
      return true;
      }
 
-     void RaftNode::applyCommitted() {
+     void RaftNode::applyCommitted(int correlationId) {
             const int lastLogIndex = static_cast<int>(log.size());
             if (commitIndex > lastLogIndex) commitIndex = lastLogIndex;
             while (lastApplied < commitIndex) {
@@ -845,6 +855,9 @@ bool RaftNode::init_from_storage() {
                 if (vecIdx < 0 || vecIdx >= static_cast<int>(log.size())) break;
                 const LogEntry& e = log[vecIdx];
                 lastApplied = nextIndex;
+            }
+            if(correlationId != -1){
+            notifyWaiter(correlationId);
             }
             }
 bool RaftNode::checkFile(){
